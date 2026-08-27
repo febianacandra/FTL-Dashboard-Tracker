@@ -1,0 +1,862 @@
+const SUPABASE_URL = 'https://jbpcqpyyymizxzkkqctn.supabase.co/rest/v1/';
+const SUPABASE_ANON_KEY = 'sb_publishable_teqDG7Pt-JwTlaJ5R0I5sQ_-Kd5Xeeo';
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Manager PT - PASKO</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  body { font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background:#F6F5F1; }
+  .card { background:#fff; border:1px solid #E4E2DA; border-radius:14px; padding:16px; margin-bottom:14px; }
+  .kpi-label { font-size:11px; font-weight:700; text-transform:uppercase; color:#6B6A64; }
+  .kpi-val { font-size:22px; font-weight:800; margin-top:4px; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th { text-align:left; font-size:10.5px; text-transform:uppercase; color:#6B6A64; padding:7px 8px; border-bottom:2px solid #E4E2DA; white-space:nowrap; }
+  td { padding:6px 8px; border-bottom:1px solid #E4E2DA; vertical-align:middle; }
+  tr:hover td { background:#FAFAF7; }
+  input[type=text], input[type=number], input[type=password], select {
+    width:100%; font-size:12.5px; padding:5px 7px; border:1px solid #E4E2DA; border-radius:6px; background:#fff;
+  }
+  .btn { border:1px solid #E4E2DA; background:#fff; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer; }
+  .btn:hover { background:#F6F5F1; }
+  .btn-primary { background:#0F6E56; color:#fff; border-color:#0F6E56; }
+  .btn-primary:hover { opacity:.9; }
+  .btn-danger { color:#A32D2D; }
+  .badge { display:inline-block; padding:2px 9px; border-radius:20px; font-size:10.5px; font-weight:700; }
+  .b-teal { background:#E1F5EE; color:#0F6E56; }
+  .b-amber { background:#FAEEDA; color:#854F0B; }
+  .b-red { background:#FCEBEB; color:#A32D2D; }
+  .b-gray { background:#F1EFE8; color:#5F5E5A; }
+  .tab { padding:9px 10px; border-radius:9px; font-size:12.5px; font-weight:700; color:#6B6A64; cursor:pointer; white-space:nowrap; }
+  .tab.active { background:#0F6E56; color:#fff; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  .loading { text-align:center; padding:40px; color:#6B6A64; font-size:13px; }
+  .cal-cell { min-height:70px; border:1px solid #E4E2DA; border-radius:8px; padding:5px; font-size:10px; background:#FAFAF9; }
+  .cal-cell.empty { background:transparent; border:none; }
+  .cal-ev { background:#E1F5EE; color:#0F6E56; border-radius:4px; padding:2px 4px; margin-bottom:2px; font-size:9px; font-weight:700; }
+  .rt-dot { width:8px; height:8px; border-radius:50%; display:inline-block; background:#22c55e; animation:pulse 1.6s infinite; }
+  @keyframes pulse { 0%{opacity:1;} 50%{opacity:.3;} 100%{opacity:1;} }
+</style>
+</head>
+<body>
+
+<div id="pinGate" class="min-h-screen flex items-center justify-center px-5" style="min-height:100vh;">
+  <div class="max-w-sm w-full bg-white border border-gray-200 rounded-2xl p-8 text-center">
+    <p class="text-xs font-bold tracking-wider uppercase text-emerald-700 mb-1">FTL - Pasir Koja &middot; PASKO</p>
+    <h1 class="text-lg font-extrabold mb-1">Dashboard Manager Personal Trainer</h1>
+    <p class="text-xs text-gray-500 mb-5">Masukkan PIN untuk membuka dashboard.</p>
+    <input id="pinInput" type="text" inputmode="numeric" autocomplete="off" placeholder="PIN"
+      class="text-center text-lg tracking-widest border rounded-lg px-3 py-2.5 w-full mb-2" />
+    <p id="pinError" class="text-xs text-red-600 mb-2 hidden">PIN salah, coba lagi.</p>
+    <button class="btn btn-primary w-full" onclick="tryPin()">Masuk</button>
+  </div>
+</div>
+
+<div id="app" class="hidden max-w-6xl mx-auto px-5 py-6 pb-16">
+  <div class="flex items-start justify-between flex-wrap gap-3 mb-4">
+    <div>
+      <p class="text-xs font-bold tracking-wider uppercase text-emerald-700 mb-1">FTL - Pasir Koja &middot; PASKO</p>
+      <h1 class="text-2xl font-extrabold">Dashboard Manager Personal Trainer</h1>
+      <p class="text-sm text-gray-500 mt-1">
+        <span class="rt-dot"></span> Realtime — tersambung ke Supabase, perubahan browser lain otomatis muncul di sini.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="saveBadge" class="text-xs font-semibold text-emerald-700"></span>
+    </div>
+  </div>
+
+  <div class="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 mb-4">
+    <div class="text-xs text-emerald-800">
+      <span class="font-bold">Bulan aktif untuk semua KPI:</span> <span id="activeMonthLabel"></span>
+    </div>
+    <div class="flex gap-1">
+      <button class="btn" onclick="shiftMonth(-1)">&larr;</button>
+      <button class="btn" onclick="shiftMonth(1)">&rarr;</button>
+    </div>
+  </div>
+
+  <div class="flex gap-1 bg-white border border-gray-200 rounded-xl p-1.5 mb-5 overflow-x-auto">
+    <div class="tab active" data-tab="summary" onclick="switchTab('summary')">Summary</div>
+    <div class="tab" data-tab="join" onclick="switchTab('join')">Member Join</div>
+    <div class="tab" data-tab="commit" onclick="switchTab('commit')">Daily Commit</div>
+    <div class="tab" data-tab="clients" onclick="switchTab('clients')">Client List</div>
+    <div class="tab" data-tab="calendar" onclick="switchTab('calendar')">Calendar</div>
+    <div class="tab" data-tab="performance" onclick="switchTab('performance')">Performance</div>
+  </div>
+
+  <div id="panel-summary" class="panel active"></div>
+  <div id="panel-join" class="panel"></div>
+  <div id="panel-commit" class="panel"></div>
+  <div id="panel-clients" class="panel"></div>
+  <div id="panel-calendar" class="panel"></div>
+  <div id="panel-performance" class="panel"></div>
+</div>
+
+<div id="loadingMsg" class="loading hidden">Memuat data...</div>
+
+<script>
+// ================= CONFIG — isi ini setelah bikin project Supabase =================
+const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+const OUTLET = 'PASKO';
+const DASHBOARD_PIN = '2026';
+// =====================================================================================
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let DATA = null;
+let activeYear = 2026;
+let activeMonthIdx = 7; // Agustus
+let clientFilterTrainer = 'Semua';
+let calYear = 2026, calMonthIdx = 7;
+const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const DOW = ['Sen','Sel','Rab','Kam','Jum','Sab','Min'];
+let ptGrowthChart=null, outletGrowthChart=null, trainerGrowthChart=null;
+
+function uid(){ return 'id-'+Date.now()+'-'+Math.random().toString(36).slice(2,8); }
+function fmt(n){ return Math.round(Number(n)||0).toLocaleString('id-ID'); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function monthKey(y,m){ return y+'-'+String(m+1).padStart(2,'0'); }
+function monthKeyLabel(mk){ const [y,m]=mk.split('-'); const idx=Number(m)-1; return (MONTH_SHORT[idx]||mk)+' '+y; }
+function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
+function firstWeekdayMon(y,m){ const d=new Date(y,m,1).getDay(); return (d+6)%7; }
+
+// ================= PIN =================
+document.getElementById('pinInput').addEventListener('keydown', e => { if (e.key==='Enter') tryPin(); });
+function tryPin(){
+  const pin = document.getElementById('pinInput').value.trim();
+  if (pin === DASHBOARD_PIN) {
+    document.getElementById('pinGate').classList.add('hidden');
+    document.getElementById('loadingMsg').classList.remove('hidden');
+    loadAll().then(() => {
+      document.getElementById('loadingMsg').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      renderAll();
+      subscribeRealtime();
+    });
+  } else {
+    document.getElementById('pinError').classList.remove('hidden');
+  }
+}
+
+// ================= LOAD (GET) =================
+const TABLES = ['dashboard_config','members','gora_tracking','trainer_roster','bundling_points','daily_entries','client_list','calendar_events','performance','shift_schedule'];
+
+async function loadAll(){
+  const [cfg, members, gora, roster, bpts, daily, clients, cal, perf, shifts] = await Promise.all(
+    TABLES.map(t => sb.from(t).select('*').eq('outlet', OUTLET))
+  );
+
+  const cfgRow = (cfg.data && cfg.data[0]) || {};
+  const summary = {
+    targetPoint: Number(cfgRow.target_point||0), targetOutlet: Number(cfgRow.target_outlet||0),
+    weeklyLabel: cfgRow.weekly_label||'', weeklyPercent: Number(cfgRow.weekly_percent||0),
+    dailyPartPoint: Number(cfgRow.daily_part_point||0), netClientMovement: Number(cfgRow.net_client_movement||0),
+    targetClientPerTrainer: Number(cfgRow.target_client_per_trainer||0), managerNotes: cfgRow.manager_notes||'',
+    shiftToday: (cfgRow.shift_today||[]).map(s=>({id:uid(),name:s.name,shift:s.shift})),
+  };
+
+  const list = (members.data||[]).map(m=>({id:m.id,no:m.no||'',name:m.name||'',source:m.source||'',status:m.status||'',trainer:m.trainer||''}));
+  const goRaTracking = (gora.data||[]).map(g=>({id:g.id,name:g.name||'',trainer:g.trainer||'',type:g.type||'GO',date:g.date||'',status:g.status||''}));
+
+  const bundlingByTrainer = {};
+  (bpts.data||[]).forEach(b=>{ if(!bundlingByTrainer[b.trainer_id]) bundlingByTrainer[b.trainer_id]={}; bundlingByTrainer[b.trainer_id][b.month_key]=Number(b.points||0); });
+  const perTrainer = (roster.data||[]).map(t=>({
+    id:t.id, name:t.name||'', sob:Number(t.sob||0), bundlingPoints: bundlingByTrainer[t.id]||{}
+  }));
+
+  const bundlingMC = cfgRow.bundling_mc || {};
+
+  const days = {};
+  (daily.data||[]).forEach(d=>{
+    const mk=d.month_key, tid=d.trainer_id, day=Number(d.day);
+    if(!days[mk]) days[mk]={};
+    if(!days[mk][tid]) days[mk][tid]={};
+    days[mk][tid][day] = {commit:Number(d.commit||0), actual:Number(d.actual||0), member:d.member||'', _id:d.id};
+  });
+
+  const shiftRows = (shifts.data||[]).map(s=>({id:s.id,name:s.trainer_name,days:[s.sen,s.sel,s.rab,s.kam,s.jum,s.sab,s.min]}));
+
+  const clientRows = (clients.data||[]).map(c=>{
+    const sb_=Number(c.session_bank||0), cs=Number(c.conduct_session||0);
+    return {id:c.id, trainer:c.trainer||'', clientName:c.client_name||'', sessionBank:sb_, conductSession:cs, balance:sb_-cs};
+  });
+
+  const months = {};
+  (cal.data||[]).forEach(e=>{ if(!months[e.month_key]) months[e.month_key]=[]; months[e.month_key].push({id:e.id,day:Number(e.day),text:e.agenda||''}); });
+
+  const perfMap = {}; const perfOrder = [];
+  (perf.data||[]).forEach(p=>{
+    const name=p.trainer_name||'';
+    if(!perfMap[name]){ perfMap[name]={id:uid(),name,joinDate:p.join_date||'',monthlyPoints:{}}; perfOrder.push(name); }
+    perfMap[name].monthlyPoints[p.month_key]=Number(p.points||0);
+  });
+  const trainers = perfOrder.map(n=>perfMap[n]);
+
+  DATA = {
+    summary, memberJoin:{list,goRaTracking},
+    dailyCommit:{perTrainer, days, bundlingMC, shifts: shiftRows},
+    clientList:{rows: clientRows}, calendar:{months}, performance:{trainers},
+  };
+}
+
+// ================= REALTIME =================
+function subscribeRealtime(){
+  const channel = sb.channel('dashboard-'+OUTLET);
+  TABLES.forEach(t => {
+    channel.on('postgres_changes', { event:'*', schema:'public', table:t, filter:`outlet=eq.${OUTLET}` }, () => {
+      debounceReload();
+    });
+  });
+  channel.subscribe();
+}
+let reloadTimer=null;
+function debounceReload(){
+  if (reloadTimer) clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(async () => {
+    document.getElementById('saveBadge').textContent = '↻ Ada update dari browser lain...';
+    document.getElementById('saveBadge').className = 'text-xs font-semibold text-amber-600';
+    await loadAll();
+    renderAll();
+    document.getElementById('saveBadge').textContent = 'Tersinkron ✓';
+    document.getElementById('saveBadge').className = 'text-xs font-semibold text-emerald-700';
+  }, 400);
+}
+function flashSaved(){
+  document.getElementById('saveBadge').textContent = 'Tersimpan ✓ ' + new Date().toLocaleTimeString('id-ID');
+  document.getElementById('saveBadge').className = 'text-xs font-semibold text-emerald-700';
+}
+function flashError(err){
+  document.getElementById('saveBadge').textContent = 'Gagal: ' + (err.message||err);
+  document.getElementById('saveBadge').className = 'text-xs font-semibold text-red-600';
+  console.error(err);
+}
+
+// ================= TABS / MONTH =================
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+}
+function shiftMonth(delta){
+  activeMonthIdx += delta;
+  if (activeMonthIdx>11){activeMonthIdx=0;activeYear++;}
+  if (activeMonthIdx<0){activeMonthIdx=11;activeYear--;}
+  renderAll();
+}
+function renderAll(){
+  document.getElementById('activeMonthLabel').textContent = MONTH_NAMES[activeMonthIdx]+' '+activeYear;
+  renderSummary(); renderMemberJoin(); renderDailyCommit(); renderClientList(); renderCalendar(); renderPerformance();
+}
+
+// ================= COMPUTED HELPERS =================
+// GO/RA/Closing Rate per trainer now derived AUTOMATICALLY from Tracking GO & RA
+// (tab Member Join) matched by trainer name — no longer manual input.
+function goRaStatsForTrainer(trainerName){
+  const rows = DATA.memberJoin.goRaTracking.filter(g => g.trainer && trainerName && g.trainer.trim().toLowerCase() === trainerName.trim().toLowerCase());
+  const go = rows.filter(g=>g.type==='GO').length;
+  const ra = rows.filter(g=>g.type==='RA').length;
+  const converted = rows.filter(g=>g.status && (g.status.indexOf('Convert')===0 || g.status.indexOf('Komit')===0)).length;
+  const closingRate = rows.length>0 ? (converted/rows.length*100) : 0;
+  return { go, ra, closingRate, leads: rows.length, converted };
+}
+function commitRowsForActiveMonth(){
+  const mk = monthKey(activeYear, activeMonthIdx);
+  const monthDays = DATA.dailyCommit.days[mk] || {};
+  return DATA.dailyCommit.perTrainer.map(t => {
+    const td = monthDays[t.id] || {};
+    let regulerActual=0, regulerCommit=0;
+    Object.values(td).forEach(c => { regulerActual += Number(c.actual||0); regulerCommit += Number(c.commit||0); });
+    const bundlingActual = Number((t.bundlingPoints||{})[mk] || 0);
+    const gr = goRaStatsForTrainer(t.name);
+    return Object.assign({}, t, { regulerActual, regulerCommit, bundlingActual, actual: regulerActual+bundlingActual, go:gr.go, ra:gr.ra, closingRate: gr.closingRate });
+  });
+}
+function allPerformanceMonths(){
+  const set = new Set();
+  DATA.performance.trainers.forEach(t => Object.keys(t.monthlyPoints||{}).forEach(k=>set.add(k)));
+  return Array.from(set).sort();
+}
+
+// ================= SUMMARY =================
+function renderSummary(){
+  const mk = monthKey(activeYear, activeMonthIdx);
+  const rows = commitRowsForActiveMonth();
+  const totalReguler = rows.reduce((s,t)=>s+t.regulerActual,0);
+  const totalBundlingTrainer = rows.reduce((s,t)=>s+t.bundlingActual,0);
+  const bundlingMC = Number(DATA.dailyCommit.bundlingMC[mk]||0);
+  const totalBundling = totalBundlingTrainer + bundlingMC;
+  const totalPoint = totalReguler + totalBundling;
+  const s = DATA.summary;
+  const pencapaian = s.targetPoint>0 ? (totalPoint/s.targetPoint*100) : 0;
+  const trainerActive = rows.filter(t=>t.actual>0).length;
+  const goList = DATA.memberJoin.goRaTracking;
+  const totalGO = goList.filter(g=>g.type==='GO').length;
+  const totalRA = goList.filter(g=>g.type==='RA').length;
+  const totalLeads = goList.length;
+  const totalConverted = goList.filter(g=>g.status && (g.status.indexOf('Convert')===0 || g.status.indexOf('Komit')===0)).length;
+  const closingRate = totalLeads>0 ? (totalConverted/totalLeads*100) : 0;
+  const memberJoinCount = DATA.memberJoin.list.length;
+  const months = allPerformanceMonths();
+
+  document.getElementById('panel-summary').innerHTML = `
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div class="card"><div class="kpi-label">Total Poin</div><div class="kpi-val">${fmt(totalPoint)}</div></div>
+      <div class="card"><div class="kpi-label">Poin Reguler</div><div class="kpi-val">${fmt(totalReguler)}</div></div>
+      <div class="card"><div class="kpi-label">Poin Bundling</div><div class="kpi-val">${fmt(totalBundling)}</div><div class="text-xs text-gray-500 mt-1">Trainer ${fmt(totalBundlingTrainer)} + MC ${fmt(bundlingMC)}</div></div>
+      <div class="card"><div class="kpi-label">Total Target Poin</div>
+        <input type="number" class="text-xl font-bold mt-1" value="${s.targetPoint}" onchange="updateConfig({target_point:Number(this.value)});" />
+      </div>
+      <div class="card"><div class="kpi-label">Pencapaian target</div><div class="kpi-val">${pencapaian.toFixed(1)}%</div></div>
+      <div class="card"><div class="kpi-label">Member Join Bulan Ini</div><div class="kpi-val">${memberJoinCount}</div></div>
+      <div class="card"><div class="kpi-label">Trainer Aktif</div><div class="kpi-val">${trainerActive} / ${rows.length}</div></div>
+      <div class="card"><div class="kpi-label">Target Member Outlet</div>
+        <input type="number" class="text-xl font-bold mt-1" value="${s.targetOutlet}" onchange="updateConfig({target_outlet:Number(this.value)});" />
+      </div>
+    </div>
+    <div class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2.5 text-xs text-sky-800 mb-4">
+      Total GO/RA/Closing Rate dihitung otomatis dari tab Member Join → Tracking GO & RA.
+    </div>
+    <div class="grid grid-cols-3 gap-3 mb-4">
+      <div class="card"><div class="kpi-label">Total GO (auto)</div><div class="kpi-val">${totalGO}</div></div>
+      <div class="card"><div class="kpi-label">Total RA (auto)</div><div class="kpi-val">${totalRA}</div></div>
+      <div class="card"><div class="kpi-label">Closing Rate (auto)</div><div class="kpi-val">${closingRate.toFixed(1)}%</div><div class="text-xs text-gray-500 mt-1">${totalConverted} convert / ${totalLeads} leads</div></div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div class="card">
+        <h3 class="text-sm font-bold mb-2">📈 Growth Personal Trainer (poin per bulan)</h3>
+        <div style="position:relative;height:260px;"><canvas id="ptGrowthCanvas"></canvas></div>
+      </div>
+      <div class="card">
+        <h3 class="text-sm font-bold mb-2">📈 Growth Outlet (total poin semua trainer per bulan)</h3>
+        <div style="position:relative;height:260px;"><canvas id="outletGrowthCanvas"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="text-sm font-bold mb-2">Pencapaian per trainer (${MONTH_NAMES[activeMonthIdx]}) — GO/RA/Closing Rate otomatis</h3>
+      <div style="overflow:auto;">
+      <table><thead><tr><th>Trainer</th><th>SOB</th><th>Actual</th><th>Reguler</th><th>Bundling</th><th>GO</th><th>RA</th><th>Closing Rate</th></tr></thead>
+      <tbody>${rows.map(t=>`<tr><td>${esc(t.name)}</td><td>${fmt(t.sob)}</td><td><b>${fmt(t.actual)}</b></td><td>${fmt(t.regulerActual)}</td><td>${fmt(t.bundlingActual)}</td><td>${t.go}</td><td>${t.ra}</td><td>${t.closingRate.toFixed(0)}%</td></tr>`).join('')}</tbody></table>
+      </div>
+    </div>
+    <div class="card">
+      <h3 class="text-sm font-bold mb-2">Catatan Manager</h3>
+      <textarea rows="4" class="w-full border rounded-lg p-2 text-sm" onchange="updateConfig({manager_notes:this.value});">${esc(s.managerNotes)}</textarea>
+    </div>
+  `;
+
+  const palette = ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#4a3aa7','#008300','#e34948','#0F6E56','#854F0B'];
+  const ptCtx = document.getElementById('ptGrowthCanvas');
+  if (ptGrowthChart) ptGrowthChart.destroy();
+  if (ptCtx) {
+    ptGrowthChart = new Chart(ptCtx, {
+      type:'line',
+      data:{ labels: months.map(monthKeyLabel), datasets: DATA.performance.trainers.map((t,i)=>({ label:t.name, data: months.map(m=>t.monthlyPoints[m]||0), borderColor:palette[i%palette.length], backgroundColor:'transparent', tension:.3 })) },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom',labels:{boxWidth:8,font:{size:9}}}} }
+    });
+  }
+  const outletCtx = document.getElementById('outletGrowthCanvas');
+  if (outletGrowthChart) outletGrowthChart.destroy();
+  if (outletCtx) {
+    const totals = months.map(m => DATA.performance.trainers.reduce((s,t)=>s+(t.monthlyPoints[m]||0),0));
+    outletGrowthChart = new Chart(outletCtx, {
+      type:'line',
+      data:{ labels: months.map(monthKeyLabel), datasets:[{ label:'Total Poin Outlet', data: totals, borderColor:'#0F6E56', backgroundColor:'rgba(15,110,86,0.1)', fill:true, tension:.3 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} }
+    });
+  }
+}
+async function updateConfig(patch){
+  Object.assign(DATA.summary, {
+    targetPoint: patch.target_point ?? DATA.summary.targetPoint, targetOutlet: patch.target_outlet ?? DATA.summary.targetOutlet,
+    managerNotes: patch.manager_notes ?? DATA.summary.managerNotes,
+  });
+  try {
+    await sb.from('dashboard_config').upsert(Object.assign({ outlet: OUTLET }, patch), { onConflict:'outlet' });
+    flashSaved();
+  } catch(e){ flashError(e); }
+}
+
+// ================= MEMBER JOIN =================
+const SOURCE_OPTIONS = ['New Joiner Membership','Existing Membership','Mobile Upgrade Membership','Existing Member Compliment'];
+const STATUS_OPTIONS = ['Belum ditandai','Pending','Sudah dihubungi','GO & beli PT','Beli bundling','Beli Pilates'];
+const GORA_STATUS = ['Sudah Dihubungi','Sudah Terjadwal','Convert Personal Trainer','Komit Pembelian Personal Trainer','Tidak Tertarik Beli Personal Trainer'];
+
+function renderMemberJoin(){
+  const list = DATA.memberJoin.list;
+  const online = list.filter(m=>m.source==='New Joiner Membership').length;
+  const existing = list.filter(m=>m.source==='Existing Membership').length;
+  const upgrade = list.length - online - existing;
+  const convertPT = DATA.memberJoin.goRaTracking.filter(g=>g.status==='Convert Personal Trainer').length;
+  const beliBundling = list.filter(m=>m.status==='Beli bundling').length;
+  const beliPilates = list.filter(m=>m.status==='Beli Pilates').length;
+
+  document.getElementById('panel-join').innerHTML = `
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+      <div class="card"><div class="kpi-label">Total Member Join</div><div class="kpi-val">${list.length}</div></div>
+      <div class="card"><div class="kpi-label">New Joiner Membership</div><div class="kpi-val">${online}</div><div class="text-xs text-gray-500 mt-1">Otomatis dari Sumber</div></div>
+      <div class="card"><div class="kpi-label">Existing Membership</div><div class="kpi-val">${existing}</div></div>
+      <div class="card"><div class="kpi-label">Upgrade / lainnya</div><div class="kpi-val">${upgrade}</div></div>
+    </div>
+    <div class="grid grid-cols-3 gap-3 mb-4">
+      <div class="card"><div class="kpi-label">Convert PT (auto)</div><div class="kpi-val">${convertPT}</div><div class="text-xs text-gray-500 mt-1">Dari Tracking GO & RA</div></div>
+      <div class="card"><div class="kpi-label">Beli Bundling (auto)</div><div class="kpi-val">${beliBundling}</div><div class="text-xs text-gray-500 mt-1">Dari status member baru</div></div>
+      <div class="card"><div class="kpi-label">Beli Pilates (auto)</div><div class="kpi-val">${beliPilates}</div><div class="text-xs text-gray-500 mt-1">Dari status member baru</div></div>
+    </div>
+    <div class="card">
+      <div class="flex justify-between items-center mb-2"><h3 class="text-sm font-bold">Tracking GO & RA</h3>
+        <button class="btn" onclick="addGoRa()">+ Tambah prospek</button></div>
+      <div style="max-height:340px;overflow:auto;">
+      <table><thead><tr><th>Nama</th><th>Trainer</th><th>Tipe</th><th>Tanggal</th><th>Status</th><th></th></tr></thead>
+      <tbody>${DATA.memberJoin.goRaTracking.map((g)=>`
+        <tr>
+          <td><input type="text" value="${esc(g.name)}" onchange="updateGoRa('${g.id}',{name:this.value});"/></td>
+          <td><input type="text" value="${esc(g.trainer)}" onchange="updateGoRa('${g.id}',{trainer:this.value});"/></td>
+          <td><select onchange="updateGoRa('${g.id}',{type:this.value});">
+            <option ${g.type==='GO'?'selected':''}>GO</option><option ${g.type==='RA'?'selected':''}>RA</option></select></td>
+          <td><input type="text" value="${esc(g.date)}" onchange="updateGoRa('${g.id}',{date:this.value});"/></td>
+          <td><select onchange="updateGoRa('${g.id}',{status:this.value});">
+            ${GORA_STATUS.map(o=>`<option ${g.status===o?'selected':''}>${o}</option>`).join('')}</select></td>
+          <td><button class="btn btn-danger" onclick="removeGoRa('${g.id}')">Hapus</button></td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="flex justify-between items-center mb-2"><h3 class="text-sm font-bold">Daftar Member Baru</h3>
+        <button class="btn" onclick="addMember()">+ Tambah member</button></div>
+      <div style="max-height:400px;overflow:auto;">
+      <table><thead><tr><th>No</th><th>Nama</th><th>Sumber</th><th>Status</th><th>Trainer</th><th></th></tr></thead>
+      <tbody>${list.map((m)=>`
+        <tr>
+          <td><input type="text" style="width:50px;" value="${esc(m.no)}" onchange="updateMember('${m.id}',{no:this.value});"/></td>
+          <td><input type="text" value="${esc(m.name)}" onchange="updateMember('${m.id}',{name:this.value});"/></td>
+          <td><select onchange="updateMember('${m.id}',{source:this.value});">
+            ${SOURCE_OPTIONS.map(o=>`<option ${m.source===o?'selected':''}>${o}</option>`).join('')}</select></td>
+          <td><select onchange="updateMember('${m.id}',{status:this.value});">
+            ${STATUS_OPTIONS.map(o=>`<option ${m.status===o?'selected':''}>${o}</option>`).join('')}</select></td>
+          <td><input type="text" style="width:70px;" value="${esc(m.trainer)}" onchange="updateMember('${m.id}',{trainer:this.value});"/></td>
+          <td><button class="btn btn-danger" onclick="removeMember('${m.id}')">Hapus</button></td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+    </div>
+  `;
+}
+async function addMember(){
+  try {
+    const { data, error } = await sb.from('members').insert({ outlet:OUTLET, no:String(DATA.memberJoin.list.length+1), name:'', source:'New Joiner Membership', status:'Belum ditandai', trainer:'' }).select();
+    if (error) throw error;
+    flashSaved();
+  } catch(e){ flashError(e); }
+}
+async function updateMember(id, patch){
+  try { const { error } = await sb.from('members').update(patch).eq('id', id); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function removeMember(id){
+  try { const { error } = await sb.from('members').delete().eq('id', id); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function addGoRa(){
+  try { const { error } = await sb.from('gora_tracking').insert({ outlet:OUTLET, name:'', trainer:'', type:'GO', date:'', status:'Sudah Dihubungi' }); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function updateGoRa(id, patch){
+  try { const { error } = await sb.from('gora_tracking').update(patch).eq('id', id); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function removeGoRa(id){
+  try { const { error } = await sb.from('gora_tracking').delete().eq('id', id); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+
+// ================= DAILY COMMIT =================
+function renderDailyCommit(){
+  const mk = monthKey(activeYear, activeMonthIdx);
+  const rows = commitRowsForActiveMonth();
+  const bundlingMC = Number(DATA.dailyCommit.bundlingMC[mk]||0);
+  const totalSob = DATA.dailyCommit.perTrainer.reduce((s,t)=>s+Number(t.sob||0),0);
+  const totalReguler = rows.reduce((s,t)=>s+t.regulerActual,0);
+  const totalCommit = rows.reduce((s,t)=>s+t.regulerCommit,0);
+  const totalBundlingTrainer = rows.reduce((s,t)=>s+t.bundlingActual,0);
+
+  const monthDays = DATA.dailyCommit.days[mk] || {};
+  const entries = [];
+  Object.keys(monthDays).forEach(tid=>{
+    const trainer = DATA.dailyCommit.perTrainer.find(t=>t.id===tid);
+    Object.keys(monthDays[tid]).forEach(day=>{
+      const c = monthDays[tid][day];
+      entries.push({_id:c._id, trainerId:tid, trainerName: trainer?trainer.name:'(?)', day:Number(day), commit:c.commit, actual:c.actual, member:c.member});
+    });
+  });
+  entries.sort((a,b)=>a.day-b.day);
+
+  // ---- Ringkasan Harian (daily monitoring) ----
+  const byDay = {};
+  entries.forEach(e=>{
+    if(!byDay[e.day]) byDay[e.day]={commit:0,actual:0,trainers:new Set()};
+    byDay[e.day].commit += e.commit; byDay[e.day].actual += e.actual; byDay[e.day].trainers.add(e.trainerId);
+  });
+  const dailyDays = Object.keys(byDay).map(Number).sort((a,b)=>a-b);
+
+  document.getElementById('panel-commit').innerHTML = `
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div class="card"><div class="kpi-label">Total S.O.B</div><div class="kpi-val">${fmt(totalSob)}</div></div>
+      <div class="card"><div class="kpi-label">Reguler Commit/Actual</div><div class="kpi-val">${fmt(totalReguler)} <span class="text-sm text-gray-500 font-normal">/ ${fmt(totalCommit)}</span></div></div>
+      <div class="card"><div class="kpi-label">Bundling MC (${MONTH_NAMES[activeMonthIdx]})</div>
+        <input type="number" class="text-xl font-bold mt-1" value="${bundlingMC}" onchange="updateBundlingMC(Number(this.value));"/>
+      </div>
+      <div class="card"><div class="kpi-label">Grand Total</div><div class="kpi-val">${fmt(totalReguler+totalBundlingTrainer+bundlingMC)}</div></div>
+    </div>
+
+    <div class="card">
+      <h3 class="text-sm font-bold mb-2">📊 Monitoring Harian — ${MONTH_NAMES[activeMonthIdx]} ${activeYear}</h3>
+      <p class="text-xs text-gray-500 mb-2">Rekap gabungan seluruh trainer per tanggal, untuk pantau progress harian tim.</p>
+      <div style="max-height:300px;overflow:auto;">
+      <table><thead><tr><th>Tanggal</th><th>Total Commit</th><th>Total Actual</th><th>Delta</th><th>Trainer Aktif</th></tr></thead>
+      <tbody>${dailyDays.length===0 ? '<tr><td colspan="5" class="text-center text-gray-400">Belum ada entri harian bulan ini</td></tr>' : dailyDays.map(d=>{
+        const r = byDay[d]; const delta = r.actual - r.commit;
+        return `<tr><td><b>${d}</b></td><td>${fmt(r.commit)}</td><td>${fmt(r.actual)}</td><td class="${delta<0?'text-red-600':'text-emerald-700'}"><b>${fmt(delta)}</b></td><td>${r.trainers.size}</td></tr>`;
+      }).join('')}</tbody></table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="flex justify-between items-center mb-2"><h3 class="text-sm font-bold">Roster Trainer (${MONTH_NAMES[activeMonthIdx]})</h3>
+        <button class="btn" onclick="addTrainer()">+ Tambah trainer</button></div>
+      <p class="text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2 mb-2">Kolom GO / RA / Closing Rate sekarang <b>otomatis</b> dari tab Member Join → Tracking GO & RA (dicocokkan berdasarkan nama trainer) — tidak perlu diisi manual lagi.</p>
+      <div style="overflow:auto;">
+      <table><thead><tr><th>Trainer</th><th>SOB</th><th>GO (auto)</th><th>RA (auto)</th><th>Closing Rate (auto)</th><th>Take Home Pay</th><th>Bundling Poin</th><th></th></tr></thead>
+      <tbody>${rows.map((t)=>`
+        <tr>
+          <td><input type="text" value="${esc(t.name)}" onchange="updateRoster('${t.id}',{name:this.value});"/></td>
+          <td><input type="number" style="width:70px;" value="${t.sob}" onchange="updateRoster('${t.id}',{sob:Number(this.value)});"/></td>
+          <td><span class="badge b-teal">${t.go}</span></td>
+          <td><span class="badge b-teal">${t.ra}</span></td>
+          <td><span class="badge b-amber">${t.closingRate.toFixed(0)}%</span></td>
+          <td><input type="text" style="width:90px;" value="${esc(t.homepay||'')}" onchange="updateRoster('${t.id}',{home_pay:this.value});"/></td>
+          <td><input type="number" style="width:70px;" value="${(t.bundlingPoints||{})[mk]||0}" onchange="setBundlingPoint('${t.id}',this.value);"/></td>
+          <td><button class="btn btn-danger" onclick="removeTrainer('${t.id}')">Hapus</button></td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="flex justify-between items-center mb-2"><h3 class="text-sm font-bold">Input Harian (Reguler) — ${MONTH_NAMES[activeMonthIdx]} ${activeYear}</h3></div>
+      <div class="flex flex-wrap gap-2 items-end mb-3 border-b pb-3">
+        <div><label class="text-xs text-gray-500">Trainer</label><select id="dcTrainer">
+          ${DATA.dailyCommit.perTrainer.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div>
+        <div><label class="text-xs text-gray-500">Tanggal</label><input id="dcDay" type="number" min="1" max="31" style="width:70px;"/></div>
+        <div><label class="text-xs text-gray-500">Commit</label><input id="dcCommit" type="number" style="width:80px;"/></div>
+        <div><label class="text-xs text-gray-500">Actual</label><input id="dcActual" type="number" style="width:80px;"/></div>
+        <div><label class="text-xs text-gray-500">Nama Member</label><input id="dcMember" type="text" style="width:140px;"/></div>
+        <button class="btn btn-primary" onclick="addDayEntry()">+ Tambah</button>
+      </div>
+      <div style="max-height:340px;overflow:auto;">
+      <table><thead><tr><th>Tanggal</th><th>Trainer</th><th>Commit</th><th>Actual</th><th>Member</th><th></th></tr></thead>
+      <tbody>${entries.map(e=>`
+        <tr>
+          <td>${e.day}</td><td>${esc(e.trainerName)}</td><td>${fmt(e.commit)}</td><td>${fmt(e.actual)}</td><td>${esc(e.member)}</td>
+          <td><button class="btn btn-danger" onclick="removeDayEntry('${e._id}')">Hapus</button></td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+      <p class="text-xs text-gray-500 mt-2">Total Poin di tab Summary = jumlah Actual di tabel ini + Bundling Poin per trainer + Bundling MC.</p>
+    </div>
+  `;
+}
+async function updateRoster(id, patch){
+  try { const { error } = await sb.from('trainer_roster').update(patch).eq('id', id); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function addTrainer(){
+  try { const { error } = await sb.from('trainer_roster').insert({ id:uid(), outlet:OUTLET, name:'', sob:3200, home_pay:'-' }); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function removeTrainer(id){
+  try {
+    await sb.from('bundling_points').delete().eq('trainer_id', id).eq('outlet', OUTLET);
+    await sb.from('daily_entries').delete().eq('trainer_id', id).eq('outlet', OUTLET);
+    const { error } = await sb.from('trainer_roster').delete().eq('id', id);
+    if (error) throw error;
+    flashSaved();
+  } catch(e){ flashError(e); }
+}
+async function setBundlingPoint(trainerId, val){
+  const mk = monthKey(activeYear, activeMonthIdx);
+  try {
+    const { error } = await sb.from('bundling_points').upsert(
+      { outlet:OUTLET, trainer_id:trainerId, month_key:mk, points:Number(val) },
+      { onConflict:'outlet,trainer_id,month_key' }
+    );
+    if (error) throw error;
+    flashSaved();
+  } catch(e){ flashError(e); }
+}
+async function updateBundlingMC(val){
+  const mk = monthKey(activeYear, activeMonthIdx);
+  const next = Object.assign({}, DATA.dailyCommit.bundlingMC, { [mk]: val });
+  try {
+    const { error } = await sb.from('dashboard_config').upsert({ outlet:OUTLET, bundling_mc: next }, { onConflict:'outlet' });
+    if (error) throw error;
+    flashSaved();
+  } catch(e){ flashError(e); }
+}
+async function addDayEntry(){
+  const tid = document.getElementById('dcTrainer').value;
+  const day = Number(document.getElementById('dcDay').value);
+  const commit = Number(document.getElementById('dcCommit').value)||0;
+  const actual = Number(document.getElementById('dcActual').value)||0;
+  const member = document.getElementById('dcMember').value;
+  if (!tid || !day) { alert('Pilih trainer dan tanggal dulu.'); return; }
+  const mk = monthKey(activeYear, activeMonthIdx);
+  try {
+    const { error } = await sb.from('daily_entries').upsert(
+      { outlet:OUTLET, trainer_id:tid, month_key:mk, day, commit, actual, member },
+      { onConflict:'outlet,trainer_id,month_key,day' }
+    );
+    if (error) throw error;
+    flashSaved();
+  } catch(e){ flashError(e); }
+}
+async function removeDayEntry(rowId){
+  try { const { error } = await sb.from('daily_entries').delete().eq('id', rowId); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+
+// ================= CLIENT LIST =================
+function renderClientList(){
+  const rows = DATA.clientList.rows;
+  const trainers = Array.from(new Set(rows.map(r=>r.trainer).filter(Boolean))).sort();
+  const recap = trainers.map(tr => {
+    const rs = rows.filter(r=>r.trainer===tr);
+    return { trainer:tr, count:rs.length, sessionBank:rs.reduce((s,r)=>s+Number(r.sessionBank||0),0), conduct:rs.reduce((s,r)=>s+Number(r.conductSession||0),0), balance:rs.reduce((s,r)=>s+Number(r.balance||0),0) };
+  });
+  const filtered = clientFilterTrainer==='Semua' ? rows : rows.filter(r=>r.trainer===clientFilterTrainer);
+  const totalSB = filtered.reduce((s,r)=>s+Number(r.sessionBank||0),0);
+  const totalCS = filtered.reduce((s,r)=>s+Number(r.conductSession||0),0);
+  const totalBal = filtered.reduce((s,r)=>s+Number(r.balance||0),0);
+
+  document.getElementById('panel-clients').innerHTML = `
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div class="card"><div class="kpi-label">Total Klien Aktif</div><div class="kpi-val">${rows.length}</div></div>
+      <div class="card"><div class="kpi-label">Total Session Bank</div><div class="kpi-val">${fmt(totalSB)}</div></div>
+      <div class="card"><div class="kpi-label">Total Conduct Session</div><div class="kpi-val">${fmt(totalCS)}</div></div>
+      <div class="card"><div class="kpi-label">Total Balance</div><div class="kpi-val">${fmt(totalBal)}</div></div>
+    </div>
+    <div class="card">
+      <h3 class="text-sm font-bold mb-2">Rekap per Trainer</h3>
+      <div style="overflow:auto;">
+      <table><thead><tr><th>Trainer</th><th>Jumlah Klien</th><th>Session Bank</th><th>Conduct</th><th>Balance</th></tr></thead>
+      <tbody>${recap.map(r=>`<tr><td>${esc(r.trainer)}</td><td>${r.count}</td><td>${fmt(r.sessionBank)}</td><td>${fmt(r.conduct)}</td><td class="${r.balance<0?'text-red-600':''}"><b>${fmt(r.balance)}</b></td></tr>`).join('')}</tbody></table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
+        <h3 class="text-sm font-bold">Client List</h3>
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-gray-500">Filter trainer:</label>
+          <select style="width:180px;" onchange="clientFilterTrainer=this.value;renderClientList();">
+            <option value="Semua" ${clientFilterTrainer==='Semua'?'selected':''}>Semua trainer</option>
+            ${trainers.map(t=>`<option value="${esc(t)}" ${clientFilterTrainer===t?'selected':''}>${esc(t)}</option>`).join('')}
+          </select>
+          <button class="btn" onclick="addClient()">+ Tambah klien</button>
+        </div>
+      </div>
+      <div style="max-height:500px;overflow:auto;">
+      <table><thead><tr><th>Trainer</th><th>Nama Klien</th><th>Session Bank</th><th>Conduct Session</th><th>Balance (auto)</th><th></th></tr></thead>
+      <tbody>${filtered.map((r)=>`<tr>
+          <td><input type="text" style="width:110px;" value="${esc(r.trainer)}" onchange="updateClient('${r.id}',{trainer:this.value});"/></td>
+          <td><input type="text" value="${esc(r.clientName)}" onchange="updateClient('${r.id}',{client_name:this.value});"/></td>
+          <td><input type="number" style="width:70px;" value="${r.sessionBank}" onchange="updateClient('${r.id}',{session_bank:Number(this.value)});"/></td>
+          <td><input type="number" style="width:70px;" value="${r.conductSession}" onchange="updateClient('${r.id}',{conduct_session:Number(this.value)});"/></td>
+          <td><b class="${r.balance<0?'text-red-600':''}">${fmt(r.balance)}</b></td>
+          <td><button class="btn btn-danger" onclick="removeClient('${r.id}')">Hapus</button></td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+      <p class="text-xs text-gray-500 mt-2">Balance dihitung otomatis = Session Bank − Conduct Session.</p>
+    </div>
+  `;
+}
+async function updateClient(id, patch){
+  try { const { error } = await sb.from('client_list').update(patch).eq('id', id); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function addClient(){
+  const tr = clientFilterTrainer==='Semua' ? '' : clientFilterTrainer;
+  try { const { error } = await sb.from('client_list').insert({ outlet:OUTLET, trainer:tr, client_name:'', session_bank:0, conduct_session:0 }); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function removeClient(id){
+  try { const { error } = await sb.from('client_list').delete().eq('id', id); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+
+// ================= CALENDAR =================
+function renderCalendar(){
+  const mk = monthKey(calYear, calMonthIdx);
+  const events = DATA.calendar.months[mk] || [];
+  const totalDays = daysInMonth(calYear, calMonthIdx);
+  const firstDay = firstWeekdayMon(calYear, calMonthIdx);
+  const byDay = {};
+  events.forEach((e) => { if(!byDay[e.day]) byDay[e.day]=[]; byDay[e.day].push(e); });
+
+  let cells = '';
+  for (let i=0;i<firstDay;i++) cells += `<div class="cal-cell empty"></div>`;
+  for (let d=1; d<=totalDays; d++) {
+    const evs = byDay[d]||[];
+    cells += `<div class="cal-cell"><div style="font-weight:800;font-size:11px;margin-bottom:2px;">${d}</div>${evs.map(e=>`<div class="cal-ev">${esc(e.text)||'(kosong)'}</div>`).join('')}</div>`;
+  }
+
+  document.getElementById('panel-calendar').innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-base font-bold">${MONTH_NAMES[calMonthIdx]} ${calYear}</h2>
+      <div class="flex gap-1">
+        <button class="btn" onclick="calShiftMonth(-1)">&larr;</button>
+        <button class="btn" onclick="calShiftMonth(1)">&rarr;</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="grid grid-cols-7 gap-1 mb-1">${DOW.map(d=>`<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#6B6A64;text-align:center;">${d}</div>`).join('')}</div>
+      <div class="grid grid-cols-7 gap-1">${cells}</div>
+    </div>
+    <div class="card">
+      <div class="flex justify-between items-center mb-2"><h3 class="text-sm font-bold">Kelola agenda — ${MONTH_NAMES[calMonthIdx]} ${calYear}</h3>
+        <button class="btn" onclick="addEvent()">+ Tambah agenda</button></div>
+      <div style="max-height:340px;overflow:auto;">
+      <table><thead><tr><th>Tanggal</th><th>Agenda</th><th></th></tr></thead>
+      <tbody>${events.map((e)=>`
+        <tr>
+          <td><input type="number" min="1" max="31" style="width:60px;" value="${e.day}" onchange="updateEvent('${e.id}',{day:Number(this.value)});"/></td>
+          <td><input type="text" value="${esc(e.text)}" onchange="updateEvent('${e.id}',{agenda:this.value});"/></td>
+          <td><button class="btn btn-danger" onclick="removeEvent('${e.id}')">Hapus</button></td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+    </div>
+  `;
+}
+function calShiftMonth(delta){ calMonthIdx+=delta; if(calMonthIdx>11){calMonthIdx=0;calYear++;} if(calMonthIdx<0){calMonthIdx=11;calYear--;} renderCalendar(); }
+async function addEvent(){
+  const mk = monthKey(calYear, calMonthIdx);
+  try { const { error } = await sb.from('calendar_events').insert({ outlet:OUTLET, month_key:mk, day:1, agenda:'' }); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function updateEvent(id, patch){
+  try { const { error } = await sb.from('calendar_events').update(patch).eq('id', id); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function removeEvent(id){
+  try { const { error } = await sb.from('calendar_events').delete().eq('id', id); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+
+// ================= PERFORMANCE =================
+function trendForSeries_(values){
+  if (values.length===0) return {label:'-',cls:'b-gray'};
+  const last = values[values.length-1];
+  const prior = values.slice(0,-1).filter(v=>v>0);
+  const avg = prior.length ? prior.reduce((a,b)=>a+b,0)/prior.length : 0;
+  if (prior.length===0 && last>0) return {label:'Baru bergabung',cls:'b-gray'};
+  if (last===0 && avg>0) return {label:'Anjlok',cls:'b-red'};
+  if (avg===0) return {label:'-',cls:'b-gray'};
+  if (last>=avg*1.05) return {label:'Naik',cls:'b-teal'};
+  if (last<=avg*0.95) return {label:'Turun',cls:'b-red'};
+  return {label:'Fluktuatif',cls:'b-amber'};
+}
+function renderPerformance(){
+  const trainers = DATA.performance.trainers;
+  const months = allPerformanceMonths();
+  const last3 = months.slice(-3);
+  const withCalc = trainers.map(t => {
+    const allVals = months.map(m=>Number((t.monthlyPoints||{})[m]||0));
+    const last3Vals = last3.map(m=>Number((t.monthlyPoints||{})[m]||0));
+    const nz = last3Vals.filter(v=>v>0);
+    const avg3 = nz.length ? nz.reduce((a,b)=>a+b,0)/nz.length : 0;
+    return { t, avg3, trend: trendForSeries_(allVals) };
+  });
+
+  document.getElementById('panel-performance').innerHTML = `
+    <div class="card">
+      <h3 class="text-sm font-bold mb-2">📈 Trainer Growth (semua bulan)</h3>
+      <div style="position:relative;height:280px;"><canvas id="trainerGrowthCanvas"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="flex justify-between items-center mb-2"><h3 class="text-sm font-bold">Detail per trainer &middot; trend 3 bulan terakhir</h3>
+        <button class="btn" onclick="addPerfTrainer()">+ Tambah trainer</button></div>
+      <div style="overflow:auto;">
+      <table><thead><tr><th>Trainer</th><th>Join Date</th>${months.map(m=>`<th>${monthKeyLabel(m)} <span style="cursor:pointer;color:#A32D2D;" onclick="removePerfMonth('${m}')">&times;</span></th>`).join('')}<th>Avg 3 Bulan</th><th>Trend</th></tr></thead>
+      <tbody>${withCalc.map(({t,avg3,trend})=>`
+        <tr>
+          <td><input type="text" style="width:140px;" value="${esc(t.name)}" onchange="updatePerfTrainerName('${esc(t.name)}',this.value);"/></td>
+          <td><input type="text" style="width:100px;" value="${esc(t.joinDate)}" onchange="setPerfJoinDate('${esc(t.name)}',this.value);"/></td>
+          ${months.map(m=>`<td><input type="number" style="width:70px;" value="${(t.monthlyPoints||{})[m]||0}" onchange="setPerfPoint('${esc(t.name)}','${esc(t.joinDate)}','${m}',this.value);"/></td>`).join('')}
+          <td><b>${fmt(avg3)}</b></td>
+          <td><span class="badge ${trend.cls}">${trend.label}</span></td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+      <div class="flex gap-2 items-center mt-3">
+        <input id="newMonthInput" type="text" placeholder="2026-09" style="width:100px;"/>
+        <button class="btn" onclick="addPerfMonth()">+ Tambah bulan</button>
+      </div>
+      <p class="text-xs text-gray-500 mt-2">Format bulan: YYYY-MM. Avg 3 Bulan &amp; Trend dihitung otomatis. Klik &times; di header kolom untuk menghapus bulan itu dari semua trainer.</p>
+    </div>
+  `;
+
+  const palette = ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#4a3aa7','#008300','#e34948','#0F6E56','#854F0B'];
+  const ctx = document.getElementById('trainerGrowthCanvas');
+  if (trainerGrowthChart) trainerGrowthChart.destroy();
+  if (ctx) {
+    trainerGrowthChart = new Chart(ctx, {
+      type:'line',
+      data:{ labels: months.map(monthKeyLabel), datasets: trainers.map((t,i)=>({ label:t.name, data: months.map(m=>t.monthlyPoints[m]||0), borderColor:palette[i%palette.length], backgroundColor:'transparent', tension:.3 })) },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom',labels:{boxWidth:8,font:{size:9}}}} }
+    });
+  }
+}
+async function setPerfPoint(name, joinDate, mk, val){
+  try {
+    const { error } = await sb.from('performance').upsert(
+      { outlet:OUTLET, trainer_name:name, join_date:joinDate, month_key:mk, points:Number(val) },
+      { onConflict:'outlet,trainer_name,month_key' }
+    );
+    if (error) throw error; flashSaved();
+  } catch(e){ flashError(e); }
+}
+async function setPerfJoinDate(name, joinDate){
+  try { const { error } = await sb.from('performance').update({ join_date:joinDate }).eq('outlet',OUTLET).eq('trainer_name', name); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function updatePerfTrainerName(oldName, newName){
+  try { const { error } = await sb.from('performance').update({ trainer_name:newName }).eq('outlet',OUTLET).eq('trainer_name', oldName); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function addPerfTrainer(){
+  const months = allPerformanceMonths();
+  const mk = months[0] || monthKey(activeYear, activeMonthIdx);
+  try { const { error } = await sb.from('performance').insert({ outlet:OUTLET, trainer_name:'Trainer baru', join_date:'', month_key:mk, points:0 }); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+async function addPerfMonth(){
+  const m = document.getElementById('newMonthInput').value.trim();
+  if (!/^\d{4}-\d{2}$/.test(m)) { alert('Format harus YYYY-MM, contoh 2026-09'); return; }
+  try {
+    const rows = DATA.performance.trainers.map(t => ({ outlet:OUTLET, trainer_name:t.name, join_date:t.joinDate, month_key:m, points:0 }));
+    if (rows.length) { const { error } = await sb.from('performance').upsert(rows, { onConflict:'outlet,trainer_name,month_key', ignoreDuplicates:true }); if (error) throw error; }
+    flashSaved();
+  } catch(e){ flashError(e); }
+}
+async function removePerfMonth(m){
+  if (!confirm('Hapus bulan '+monthKeyLabel(m)+' dari semua trainer?')) return;
+  try { const { error } = await sb.from('performance').delete().eq('outlet',OUTLET).eq('month_key', m); if (error) throw error; flashSaved(); }
+  catch(e){ flashError(e); }
+}
+</script>
+</body>
+</html>
