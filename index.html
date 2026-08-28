@@ -99,14 +99,18 @@
 <div id="loadingMsg" class="loading hidden">Memuat data...</div>
 
 <script>
-// ================= CONFIG — isi ini setelah bikin project Supabase =================
-const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+
+// ================= CONFIG =================
+const SUPABASE_URL = 'https://jbpcqpyyymizxzkkqctn.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_teqDG7Pt-JwTlaJ5R0I5sQ_-Kd5Xeeo';
 const OUTLET = 'PASKO';
 const DASHBOARD_PIN = '2026';
-// =====================================================================================
+// ===========================================
 
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
 
 let DATA = null;
 let activeYear = 2026;
